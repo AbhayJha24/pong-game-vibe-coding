@@ -7,6 +7,9 @@ on:
     branches:
       - master   # or your default branch
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -51,6 +54,8 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: zip -r dist-macos.zip dist/Pong-darwin-x64/
 
+      - name: List dist contents
+        run: ls -R dist
 
       - name: Upload Windows build
         if: matrix.os == 'windows-latest'

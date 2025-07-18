@@ -1,0 +1,14 @@
+{
+  "name": "pong-electron",
+  "version": "1.0.0",
+  "description": "Pong game packaged with Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-packager . Pong --platform=win32,darwin,linux --arch=x64 --out=dist --overwrite"
+  },
+  "devDependencies": {
+    "electron": "^37.2.3",
+    "electron-packager": "^17.1.2"
+  }
+}

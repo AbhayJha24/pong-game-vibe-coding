@@ -1,0 +1,26 @@
+# Node modules
+node_modules/
+
+# Electron packaged apps
+dist/
+Pong-win32-x64/
+Pong-darwin-x64/
+Pong-linux-x64/
+
+# VSCode settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+
+# NPM lock file
+package-lock.json

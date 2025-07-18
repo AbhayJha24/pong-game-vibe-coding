@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Pong Desktop</title>
+  <style>
+    html { overflow: hidden; }
+    body { margin: 0; background: #111; color: #fff; font-family: sans-serif; }
+    canvas { display: block; margin: auto; background: #000; }
+  </style>
+</head>
+<body>
+  <canvas id="pong" width="800" height="600"></canvas>
+  <script>
+    const canvas     = document.getElementById('pong');
+    const ctx        = canvas.getContext('2d');
+
+    // Constants
+    const PWIDTH      = 10, PHEIGHT = 100;
+    const MAX_ANGLE   = 75 * Math.PI/180;
+    const JITTER_MAX  = 5  * Math.PI/180;
+    const MIN_HORZ    = 0.25;
+    const P_SPEED     = 500;
+    const AI_SPEED    = 400;
+    const maxScore    = 5;         // score to win
+    const modes       = { MENU:0, SINGLE:1, DOUBLE:2, GAMEOVER:3, PAUSED:4 };
+    let mode          = modes.MENU;
+
+    // Scores and state
+    let scores = { left:0, right:0 };
+    let winner = '';                // 'Left' or 'Right'
+
+    // Paddle state
+    const paddles = {
+        left:  { x:10, y:(canvas.height-PHEIGHT)/2, vy:0 },
+        right: { x:canvas.width-20, y:(canvas.height-PHEIGHT)/2, vy:0 }
+    };
+
+    // Keys
+    const keys = { w:0, s:0, ArrowUp:0, ArrowDown:0, '1':0, '2':0, 'r':0 };
+    document.addEventListener('keydown', e => {
+        const k = e.key;
+        if (k in keys) keys[k] = 1;
+
+        // Menu selection
+        if (mode === modes.MENU) {
+        if (k === '1' || k === '2') {
+            mode = (k === '1' ? modes.SINGLE : modes.DOUBLE);
+            scores.left = scores.right = 0;
+            resetBall(1);
+        }
+        }
+
+        // Restart on Game Over
+        if (mode === modes.GAMEOVER && k.toLowerCase() === 'r') {
+        mode = modes.MENU;
+        }
+
+        // Pause Game
+        if (k === ' ' && mode !== modes.MENU && mode !== modes.GAMEOVER) {
+            if (mode !== modes.PAUSED) {
+                prevMode = mode;
+                mode = modes.PAUSED;
+            } else {
+                mode = prevMode;
+            }
+        }
+
+        // Quit to main menu
+        if (k.toLowerCase() === 'q' && mode !== modes.MENU && mode !== modes.GAMEOVER) {
+            mode = modes.MENU;
+            scores.left = scores.right = 0;
+            resetBall(1);
+        }
+    });
+
+    document.addEventListener('keyup', e => {
+        if (e.key in keys) keys[e.key] = 0;
+    });
+
+    // Ball state
+    const ball = { x:0, y:0, r:10, speed:350, vx:0, vy:0 };
+    function resetBall(dir=1) {
+        ball.x = canvas.width/2;
+        ball.y = canvas.height/2;
+        ball.speed = 350;
+        const ang = (Math.random()*0.5 + 0.25) * Math.PI * dir;
+        ball.vx = ball.speed * Math.cos(ang);
+        ball.vy = ball.speed * Math.sin(ang);
+    }
+
+    function applyWallJitter() {
+        const prevSign = Math.sign(ball.vx)||1;
+        let ang = Math.atan2(ball.vy, ball.vx)
+                + (Math.random()*2 - 1)*JITTER_MAX;
+        let vx = ball.speed * Math.cos(ang);
+        let vy = ball.speed * Math.sin(ang);
+        vx = prevSign * Math.abs(vx);
+        const minVX = ball.speed * MIN_HORZ;
+        if (Math.abs(vx) < minVX) {
+        const signY = Math.sign(vy)||1;
+        vx = prevSign * minVX;
+        vy = signY * Math.sqrt(ball.speed*ball.speed - vx*vx);
+        }
+        ball.vx = vx;
+        ball.vy = vy;
+    }
+
+    // Predictive AI
+    function predictBallY() {
+        if (ball.vx <= 0) return paddles.right.y + PHEIGHT/2;
+        const px = paddles.right.x - ball.r;
+        const dt = (px - ball.x)/ball.vx;
+        let y = ball.y + ball.vy*dt;
+        const minY = ball.r, maxY = canvas.height-ball.r, range = maxY-minY;
+        let m = (y - minY) % (2*range);
+        if (m < 0) m += 2*range;
+        if (m > range) m = 2*range - m;
+        return m + minY;
+    }
+
+    // Draw helpers
+    function drawMenu() {
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.font = '40px sans-serif';  ctx.fillText('PONG', canvas.width/2, 120);
+        ctx.font = '24px sans-serif';
+        ctx.fillText('Press 1: Single Player', canvas.width/2, 200);
+        ctx.fillText('Press 2: Two Players',  canvas.width/2, 250);
+
+        ctx.strokeStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2 - 150, 300);
+        ctx.lineTo(canvas.width/2 + 150, 300);
+        ctx.stroke();
+
+
+        ctx.font = '20px sans-serif';
+        ctx.fillText('Instructions:', canvas.width/2, 350);
+        ctx.font = '18px sans-serif';
+        ctx.fillText('Player 1: W (up), S (down)', canvas.width/2, 400);
+        ctx.fillText('Player 2: ↑ (up), ↓ (down)', canvas.width/2, 425);
+        ctx.fillText('Spacebar: Pause/Resume', canvas.width/2, 450);
+        ctx.fillText('Q: Quit to Menu', canvas.width/2, 475);
+        ctx.fillText('First to 5 points wins the game!', canvas.width/2, 500);
+    }
+
+    function drawScore() {
+        ctx.font = '28px sans-serif';  ctx.textAlign = 'center';
+        ctx.fillText(scores.left,  canvas.width/4,  50);
+        ctx.fillText(scores.right, canvas.width*3/4,50);
+    }
+
+    function drawGameOver() {
+        ctx.fillStyle = '#f00';
+        ctx.textAlign = 'center';
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.font = '40px sans-serif';  ctx.fillText('GAME OVER', canvas.width/2, 250);
+        ctx.fillStyle = '#fff';
+        ctx.font = '28px sans-serif';
+        ctx.fillText(`${winner} Player Wins!`, canvas.width/2, 320);
+        ctx.font = '20px sans-serif';
+        ctx.fillText('Press R to Restart', canvas.width/2, 380);
+    }
+
+    // Main loop
+    let last = performance.now();
+    function loop(now=performance.now()) {
+        const dt = (now - last)/1000;
+        last = now;
+
+        // Game Pause Check
+
+        if (mode === modes.PAUSED) {
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.font = '32px sans-serif';
+            ctx.fillText('Game Paused', canvas.width/2, canvas.height/2);
+            return requestAnimationFrame(loop);
+        }
+
+        // 1) Menu
+        if (mode === modes.MENU) {
+        drawMenu();
+        return requestAnimationFrame(loop);
+        }
+
+        // 2) Game Over screen
+        if (mode === modes.GAMEOVER) {
+        drawGameOver();
+        return requestAnimationFrame(loop);
+        }
+
+        // 3) Paddle Movement
+        paddles.left.vy = (keys.w ? -P_SPEED : 0) + (keys.s ? P_SPEED : 0);
+
+        // Right paddle: human or AI
+        if (mode === modes.DOUBLE) {
+        paddles.right.vy = (keys.ArrowUp ? -P_SPEED : 0)
+                        + (keys.ArrowDown ? P_SPEED : 0);
+        } else {
+        // Predictive AI
+        paddles.right.vy = 0;
+        if (ball.vx > 0) {
+            const targetY = predictBallY();
+            const diff    = targetY - (paddles.right.y + PHEIGHT/2);
+            if      (diff > 5)  paddles.right.vy =  P_SPEED;
+            else if (diff < -5) paddles.right.vy = -P_SPEED;
+        }
+        }
+
+        // Apply paddle movement
+        for (let side of ['left','right']) {
+        const p = paddles[side];
+        p.y = Math.max(0, Math.min(canvas.height-PHEIGHT, p.y + p.vy*dt));
+        }
+
+        // 4) Move Ball
+        ball.x += ball.vx * dt;
+        ball.y += ball.vy * dt;
+
+        // 5) Wall Collisions
+        if (ball.y < ball.r) {
+        ball.y = ball.r; ball.vy = -ball.vy; applyWallJitter();
+        }
+        else if (ball.y > canvas.height - ball.r) {
+        ball.y = canvas.height - ball.r; ball.vy = -ball.vy; applyWallJitter();
+        }
+
+        // 6) Scoring & Game Over Check
+        if (ball.x < 0 || ball.x > canvas.width) {
+        if (ball.x < 0) scores.right++;
+        else             scores.left++;
+
+        // Check for win
+        if (scores.left >= maxScore || scores.right >= maxScore) {
+            if(mode === 1){
+                winner = scores.left > scores.right ? 'Human' : 'Computer';
+            }
+            else{
+                winner = scores.left > scores.right ? 'Left' : 'Right';
+            }
+            mode   = modes.GAMEOVER;
+        } else {
+            resetBall(ball.x < 0 ? 1 : -1);
+        }
+        }
+
+        // 7) Paddle Collisions
+        function collide(p, isLeft) {
+        const px = p.x + (isLeft ? PWIDTH : 0);
+        return ball.y > p.y &&
+                ball.y < p.y + PHEIGHT &&
+                Math.abs(ball.x - px) < ball.r + PWIDTH;
+        }
+
+        if (collide(paddles.left, true) && ball.vx < 0) {
+        const p   = paddles.left;
+        const rel = (ball.y - (p.y + PHEIGHT/2))/(PHEIGHT/2);
+        const ang = rel * MAX_ANGLE;
+        ball.speed *= 1.05;
+        ball.vx =  Math.abs(ball.speed * Math.cos(ang));
+        ball.vy =       ball.speed * Math.sin(ang);
+        ball.x  = p.x + PWIDTH + ball.r + 1;
+        }
+
+        if (collide(paddles.right, false) && ball.vx > 0) {
+        const p   = paddles.right;
+        const rel = (ball.y - (p.y + PHEIGHT/2))/(PHEIGHT/2);
+        const ang = rel * MAX_ANGLE;
+        ball.speed *= 1.05;
+        ball.vx = -Math.abs(ball.speed * Math.cos(ang));
+        ball.vy =  ball.speed * Math.sin(ang);
+        ball.x  = p.x - ball.r - 1;
+        }
+
+        // 8) Render Playfield
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        drawScore();
+        ctx.fillStyle = '#fff';
+        for (let side of ['left','right']) {
+        const p = paddles[side];
+        ctx.fillRect(p.x, p.y, PWIDTH, PHEIGHT);
+        }
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+        ctx.fill();
+
+        requestAnimationFrame(loop);
+    }
+
+    // Start
+    resetBall(1);
+    loop();
+</script>
+</body>
+</html>

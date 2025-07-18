@@ -39,12 +39,15 @@ jobs:
         run: npm run dist:mac
 
       - name: Compress Windows build
+        if: matrix.os == 'windows-latest'
         run: zip -r dist-windows.zip dist/Pong-win32-x64/
 
       - name: Compress Linux build
+        if: matrix.os == 'ubuntu-latest'
         run: zip -r dist-linux.zip dist/Pong-linux-x64/
 
       - name: Compress macOS build
+        if: matrix.os == 'macos-latest'
         run: zip -r dist-macos.zip dist/Pong-darwin-x64/
 
 
